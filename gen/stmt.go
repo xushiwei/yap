@@ -17,12 +17,14 @@
 package gen
 
 import (
+	"go/types"
+
 	"github.com/goplus/gop/ast"
 	"github.com/goplus/gop/token"
 )
 
 type Stmt interface {
-	Stmt() ast.Stmt
+	Stmt(pkg *Package) ast.Stmt
 }
 
 // -----------------------------------------------------------------------------
@@ -31,17 +33,16 @@ type AssignStmt struct {
 	lhs []*Expr
 	rhs []*Expr
 	org ast.Node
-	pkg *Package
 }
 
 func (p *Package) Assign(org ...ast.Node) *AssignStmt {
-	return &AssignStmt{org: origin(org), pkg: p}
+	return &AssignStmt{org: origin(org)}
 }
 
-func (p *AssignStmt) Stmt() ast.Stmt {
+func (p *AssignStmt) Stmt(pkg *Package) ast.Stmt {
 	lht := NewExprs(p.lhs)
 	rht := TupleOf(p.rhs)
-	err := p.pkg.CheckAssignable(lht, rht, p.org)
+	err := pkg.CheckAssignable(lht, rht, p.org)
 	if err != nil {
 		panic(err)
 	}
@@ -72,19 +73,19 @@ func (p *Package) Block(in ...Stmt) *BlockStmt {
 	return &BlockStmt{in}
 }
 
-func (p *BlockStmt) Stmt() ast.Stmt {
-	return makeBlockStmt(p.body)
+func (p *BlockStmt) Stmt(pkg *Package) ast.Stmt {
+	return makeBlockStmt(pkg, p.body)
 }
 
-func (p *BlockStmt) Add(list ...Stmt) *BlockStmt {
+func (p *BlockStmt) BodyAdd(list ...Stmt) *BlockStmt {
 	p.body = append(p.body, list...)
 	return p
 }
 
-func makeBlockStmt(in []Stmt) *ast.BlockStmt {
+func makeBlockStmt(pkg *Package, in []Stmt) *ast.BlockStmt {
 	list := make([]ast.Stmt, len(in))
 	for i, v := range in {
-		list[i] = v.Stmt()
+		list[i] = v.Stmt(pkg)
 	}
 	return &ast.BlockStmt{List: list}
 }
@@ -103,16 +104,19 @@ func (p *Package) If(org ...ast.Node) *IfStmt {
 	return &IfStmt{org: origin(org)}
 }
 
-func (p *IfStmt) Stmt() ast.Stmt {
+func (p *IfStmt) Stmt(pkg *Package) ast.Stmt {
+	if !assertType(p.cond.typ, types.Typ[types.Bool]) {
+		panic("todo")
+	}
 	stmt := &ast.IfStmt{
 		Cond: p.cond.src,
-		Body: makeBlockStmt(p.body),
+		Body: makeBlockStmt(pkg, p.body),
 	}
 	if p.init != nil {
-		stmt.Init = p.init.Stmt()
+		stmt.Init = p.init.Stmt(pkg)
 	}
 	if p.else_ != nil {
-		stmt.Else = p.else_.Stmt()
+		stmt.Else = p.else_.Stmt(pkg)
 	}
 	return stmt
 }
@@ -132,7 +136,7 @@ func (p *IfStmt) Body(list ...Stmt) *IfStmt {
 	return p
 }
 
-func (p *IfStmt) Add(list ...Stmt) *IfStmt {
+func (p *IfStmt) BodyAdd(list ...Stmt) *IfStmt {
 	p.body = append(p.body, list...)
 	return p
 }
@@ -160,9 +164,9 @@ func (p *IfStmt) Else(list ...Stmt) *IfStmt {
 // -----------------------------------------------------------------------------
 
 type ForStmt struct {
-	init Stmt // initialization statement; or nil
-	cond any  // condition; or nil
-	post Stmt // post iteration statement; or nil
+	init Stmt  // initialization statement; or nil
+	cond *Expr // condition; or nil
+	post Stmt  // post iteration statement; or nil
 	body []Stmt
 	org  ast.Node
 }
@@ -171,18 +175,21 @@ func (p *Package) For(org ...ast.Node) *ForStmt {
 	return &ForStmt{org: origin(org)}
 }
 
-func (p *ForStmt) Stmt() ast.Stmt {
+func (p *ForStmt) Stmt(pkg *Package) ast.Stmt {
 	stmt := &ast.ForStmt{
-		Body: makeBlockStmt(p.body),
+		Body: makeBlockStmt(pkg, p.body),
 	}
 	if p.init != nil {
-		stmt.Init = p.init.Stmt()
+		stmt.Init = p.init.Stmt(pkg)
 	}
 	if p.cond != nil {
-		stmt.Cond = p.cond.(*Expr).src
+		if !assertType(p.cond.typ, types.Typ[types.Bool]) {
+			panic("todo")
+		}
+		stmt.Cond = p.cond.src
 	}
 	if p.post != nil {
-		stmt.Post = p.post.Stmt()
+		stmt.Post = p.post.Stmt(pkg)
 	}
 	return stmt
 }
@@ -193,7 +200,6 @@ func (p *ForStmt) Init(init Stmt) *ForStmt {
 }
 
 func (p *ForStmt) Cond(cond *Expr) *ForStmt {
-	cond.AssertType(TyBool)
 	p.cond = cond
 	return p
 }
@@ -208,7 +214,7 @@ func (p *ForStmt) Body(list ...Stmt) *ForStmt {
 	return p
 }
 
-func (p *ForStmt) Add(list ...Stmt) *ForStmt {
+func (p *ForStmt) BodyAdd(list ...Stmt) *ForStmt {
 	p.body = append(p.body, list...)
 	return p
 }
@@ -250,13 +256,13 @@ func rangeVarRef(v *Var) ast.Expr {
 	return v.name
 }
 
-func (p *RangeStmt) Stmt() ast.Stmt {
+func (p *RangeStmt) Stmt(pkg *Package) ast.Stmt {
 	return &ast.RangeStmt{
 		Key:   rangeVarRef(p.key),
 		Value: rangeVarRef(p.val),
 		Tok:   token.DEFINE,
 		X:     p.x.src,
-		Body:  makeBlockStmt(p.body),
+		Body:  makeBlockStmt(pkg, p.body),
 	}
 }
 

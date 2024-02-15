@@ -25,12 +25,79 @@ import (
 
 // -----------------------------------------------------------------------------
 
+type Kind uint
+
+const (
+	Invalid Kind = 1 << iota
+	Basic
+	String
+	Pointer
+	Slice
+	Map
+	Func
+	Struct
+	Chan
+	Array
+)
+
+func typeKind(t types.Type) Kind {
+retry:
+	switch v := t.(type) {
+	case *types.Basic:
+		if info := v.Info(); (info & types.IsString) != 0 {
+			return String
+		}
+		return Basic
+	case *types.Pointer:
+		return Pointer
+	case *types.Slice:
+		return Slice
+	case *types.Map:
+		return Map
+	case *types.Signature:
+		return Func
+	case *types.Struct:
+		return Struct
+	case *types.Named:
+		t = v.Underlying()
+		goto retry
+	case *types.Chan:
+		return Chan
+	case *types.Array:
+		return Array
+	default:
+		return Invalid
+	}
+}
+
+func assertType(V, T types.Type) bool {
+	if T == nil {
+		return false
+	}
+	return types.AssignableTo(V, T)
+}
+
+// -----------------------------------------------------------------------------
+
 type Type struct {
 	types.Type
 }
 
+func (t Type) String() {} // disable func String
+
 func (t Type) IsNil() bool {
 	return t.Type == nil
+}
+
+// Kind returns the specific kind of this type.
+func (t Type) Kind() Kind {
+	return typeKind(t.Type)
+}
+
+// Key returns a map type's key type.
+// It panics if the type's Kind is not Map.
+func (t Type) Key() Type {
+	panic("todo")
 }
 
 // Elem returns a type's element type.
@@ -130,7 +197,7 @@ func (p *Package) CheckAssignable(lht, rht Tuple, org ast.Node) (err error) {
 	if nl != nr {
 		panic("todo")
 	}
-	for i := 0; i < nl; i++ {
+	for i := 0; i < nr; i++ {
 		tl, tr := lht.At(i), rht.At(i)
 		if !Assignable(tl.Type(), tr.Type()) {
 			panic("todo")

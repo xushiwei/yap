@@ -42,7 +42,7 @@ func originPos(org ast.Node) token.Pos {
 // -----------------------------------------------------------------------------
 
 type PkgRef struct {
-	Types *types.Type
+	Types *types.Package
 }
 
 func (p PkgRef) Ref(name string) Expr {
@@ -52,14 +52,15 @@ func (p PkgRef) Ref(name string) Expr {
 // -----------------------------------------------------------------------------
 
 type Package struct {
+	PkgRef
 }
 
 func (p *Package) Import(pkgPath string) PkgRef {
 	panic("todo")
 }
 
-func (p *Package) Typ(typ Type) *Expr {
-	return &Expr{p.TypeExpr(typ.Type), NewTypeType(typ.Type), nil, nil}
+func (p *Package) Typ(typ Type, org ...ast.Node) *Expr {
+	return &Expr{p.TypeExpr(typ.Type), NewTypeType(typ.Type), nil, origin(org)}
 }
 
 func (p *Package) TypeExpr(typ types.Type) ast.Expr {

@@ -38,16 +38,13 @@ func (v *Expr) Origin(org ast.Node) *Expr {
 	return v
 }
 
-func (v *Expr) Stmt() ast.Stmt {
+func (v *Expr) Stmt(pkg *Package) ast.Stmt {
 	panic("todo")
 }
 
-func (v *Expr) AssertKind(kind ...Kind) {
-	panic("todo")
-}
-
-func (v *Expr) AssertType(t Type) {
-	panic("todo")
+// Kind returns v's Kind.
+func (v *Expr) Kind() Kind {
+	return typeKind(v.typ)
 }
 
 // Type returns v's type.
@@ -70,26 +67,9 @@ func (v *Expr) ToString() string {
 
 // -----------------------------------------------------------------------------
 
-type Kind uint
-
-const (
-	Invalid Kind = iota
-	Slice
-	Array
-	String
-	Pointer
-	Struct
-)
-
-func (v *Expr) Kind() Kind {
-	return Invalid
-}
-
-// -----------------------------------------------------------------------------
-
 // lem returns the value that the expr v contains or that the pointer v
 // points to. It panics if v's Kind is not a Pointer.
-func (v *Expr) Elem(org ...ast.Node) *Expr {
+func (p *Package) Elem(v *Expr, org ...ast.Node) *Expr {
 	t := v.typ.(*types.Pointer)
 	return &Expr{
 		src: &ast.StarExpr{X: v.src},
@@ -98,15 +78,50 @@ func (v *Expr) Elem(org ...ast.Node) *Expr {
 	}
 }
 
-// Index returns v's i'th element. It panics if v's Kind is not Array, Slice, or
-// String.
-func (v *Expr) Index(i *Expr, org ...ast.Node) *Expr {
-	i.AssertType(TyInt)
-	v.AssertKind(Slice, String, Array)
+// Index func:
+//   - a[i], a[key]
+//   - fn[T1, T2, ..., Tn]
+//   - G[T1, T2, ..., Tn]
+//
+// If v is a map, Index returns the value associated with key in the map v.
+// If v is a Slice, String or Array, Index returns v's i'th element.
+// If v is a generic function or class, instantiate it.
+func (p *Package) Index(twoValue bool, v *Expr, args ...*Expr) *Expr {
+	var typ = v.typ
+	var key, elem types.Type
+retry:
+	switch t := typ.(type) {
+	case *types.Slice:
+		key, elem = types.Typ[types.Int], t.Elem()
+	case *types.Map:
+		key, elem = t.Key(), t.Elem()
+		if twoValue {
+			elem = types.NewTuple(
+				types.NewVar(token.NoPos, p.Types, "", elem),
+				types.NewVar(token.NoPos, p.Types, "", types.Typ[types.Bool]))
+		}
+	case *types.Basic:
+		if info := t.Info(); (info & types.IsString) != 0 {
+			key, elem = types.Typ[types.Int], types.Typ[types.Byte]
+		}
+	case *types.Array:
+		key, elem = types.Typ[types.Int], t.Elem()
+	case *types.Named:
+		typ = t.Underlying()
+		goto retry
+	default:
+		panic("todo - generic")
+	}
+	if elem == nil || len(args) != 1 {
+		panic("todo")
+	}
+	i := args[0]
+	if !assertType(i.typ, key) {
+		elem = types.Typ[types.Invalid]
+	}
 	return &Expr{
 		src: &ast.IndexExpr{X: v.src, Index: i.src},
-		typ: v.Type().Elem(),
-		org: origin(org),
+		typ: elem,
 	}
 }
 

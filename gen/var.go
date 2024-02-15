@@ -33,7 +33,7 @@ type Var struct {
 	auto bool
 }
 
-func (p *Var) Stmt() ast.Stmt {
+func (p *Var) Stmt(pkg *Package) ast.Stmt {
 	switch v := p.src.(type) {
 	case *ast.AssignStmt:
 		return v
