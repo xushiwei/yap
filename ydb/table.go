@@ -26,6 +26,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/goplus/yap/gen"
 	"github.com/goplus/yap/reflectutil"
 	"github.com/goplus/yap/stringutil"
 )
@@ -126,6 +127,9 @@ type field struct {
 	offset uintptr // offset within struct, in bytes
 }
 
+type fieldGen struct {
+}
+
 func newTable(name, ver string, schema dbType) *Table {
 	n := schema.NumField()
 	cols := make([]*column, 0, n)
@@ -145,6 +149,10 @@ func getVals(vals []any, v reflect.Value, cols []field, elem bool) []any {
 		vals = append(vals, val)
 	}
 	return vals
+}
+
+func getValsGen(vals []Expr, v Expr, cols []fieldGen, elem bool) []Expr {
+	panic("todo")
 }
 
 func getCols(names []string, cols []field, n int, t dbType, base uintptr) ([]string, []field) {
@@ -173,6 +181,10 @@ func getCols(names []string, cols []field, n int, t dbType, base uintptr) ([]str
 		}
 	}
 	return names, cols
+}
+
+func getColsGen(names []string, cols []fieldGen, n int, t gen.Type, base uintptr) ([]string, []fieldGen) {
+	panic("todo")
 }
 
 func (p *Table) defineCols(n int, t dbType, base uintptr) {

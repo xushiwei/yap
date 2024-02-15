@@ -1,0 +1,10 @@
+import "github.com/goplus/yap/ysql"
+
+var (
+	ysql.Class
+)
+
+func Add(doc Article) (err error) {
+	// insert doc
+	return
+}

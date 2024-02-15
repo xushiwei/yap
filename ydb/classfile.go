@@ -135,13 +135,13 @@ func Register(e *Engine) {
 
 // -----------------------------------------------------------------------------
 
-type AppGen struct {
+type App struct {
 }
 
-func (p *AppGen) initApp() {
+func (p *App) initApp() {
 }
 
-func Gopt_AppGen_Main(app interface{ initApp() }, workers ...interface{ initClass(self any) }) {
+func Gopt_App_Main(app interface{ initApp() }, workers ...interface{ initClass(self any) }) {
 	flag.BoolVar(&debugExec, "v", false, "verbose infromation")
 	flag.Parse()
 	app.initApp()

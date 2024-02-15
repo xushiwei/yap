@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"runtime/debug"
 
+	"github.com/goplus/yap/gen"
 	"github.com/goplus/yap/test"
 	"github.com/goplus/yap/test/logt"
 )
@@ -32,6 +33,8 @@ var (
 	ErrDuplicated = errors.New("duplicated")
 	ErrOutOfLimit = errors.New("out of limit")
 )
+
+type Expr = *gen.Expr
 
 // -----------------------------------------------------------------------------
 
@@ -51,6 +54,11 @@ type Class struct {
 	query *query // query
 }
 
+type ClassGen struct {
+	*gen.Package
+	tbl string
+}
+
 func (p *Class) initClass(self any) {
 	p.initSql()
 	p.self = reflect.ValueOf(self)
@@ -63,12 +71,25 @@ func (p *Class) t() test.CaseT {
 	return p.CaseT
 }
 
+func (p *Class) Tblname() string {
+	return p.tbl
+}
+
+func (p *ClassGen) Tblname() string {
+	return p.tbl
+}
+
 // Use sets the default table used in following sql operations.
 func (p *Class) Use(table string) {
 	_, ok := p.tables[table]
 	if !ok {
 		log.Panicln("table not found:", table)
 	}
+	p.tbl = table
+}
+
+// Use sets the default table used in following sql operations.
+func (p *ClassGen) Use(table string) {
 	p.tbl = table
 }
 
@@ -100,6 +121,14 @@ func (p *Class) Ret(args ...any) {
 		log.Panicln("please call `ret` after a `query` or `call` statement")
 	}
 	p.ret(args...)
+}
+
+// Ret checks a query result.
+//   - ret <expr1>, &<var1>, <expr2>, &<var2>, ...
+//   - ret <expr1>, &<varSlice1>, <expr2>, &<varSlice2>, ...
+//   - ret &<structVar>
+//   - ret &<structSlice>
+func (p *ClassGen) Ret(args ...Expr) {
 }
 
 // -----------------------------------------------------------------------------

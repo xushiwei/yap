@@ -60,6 +60,16 @@ func checkArgSlice(args []any) int {
 // -----------------------------------------------------------------------------
 
 func (p *Class) tblFromNames(names []string) (tbl string) {
+	return tblFromNames(p, names)
+}
+
+func (p *ClassGen) tblFromNames(names []string) (tbl string) {
+	return tblFromNames(p, names)
+}
+
+// -----------------------------------------------------------------------------
+
+func tblFromNames[T interface{ Tblname() string }](p T, names []string) (tbl string) {
 	var v string
 	tbl, names[0] = tblFromName(names[0])
 	for i := 1; i < len(names); i++ {
@@ -68,7 +78,7 @@ func (p *Class) tblFromNames(names []string) (tbl string) {
 		}
 	}
 	if tbl == "" {
-		tbl = p.tbl
+		tbl = p.Tblname()
 	}
 	return
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/goplus/yap/ydb"
 	_ "github.com/goplus/yap/ydb/mysql"
 	_ "github.com/goplus/yap/ydb/sqlite3"
+	"github.com/goplus/yap/ysql"
 	"log"
 	"math/rand"
 	"sort"
@@ -45,6 +46,9 @@ type User struct {
 	Born     time.Time `INDEX`
 	Ctime    time.Time `DATETIME(6) INDEX`
 }
+type ArticlesGen struct {
+	ysql.Class
+}
 type articles struct {
 	ydb.Class
 }
@@ -53,7 +57,12 @@ type users struct {
 }
 
 func main() {
-	ydb.Gopt_AppGen_Main(new(ydb.AppGen), new(articles), new(users))
+	ydb.Gopt_App_Main(new(ydb.App), new(articles), new(users))
+}
+//line ydb/demo/foo/ArticlesGen.gox:7:1
+func (this *ArticlesGen) Add(doc Article) (err error) {
+//line ydb/demo/foo/ArticlesGen.gox:9:1
+	return
 }
 //line ydb/demo/foo/articles_ydb.gox:22:1
 func (this *articles) API_Add(doc Article) {
