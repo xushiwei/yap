@@ -68,3 +68,15 @@ func (p *Package) TypeExpr(typ types.Type) ast.Expr {
 }
 
 // -----------------------------------------------------------------------------
+
+// error logs an error message. Here msg can have `$(code)`.
+func (p *Package) error(org ast.Node, msg string) {
+	panic("todo")
+}
+
+// errorf logs an error message. Here msg can have `$(code)`.
+func (p *Package) errorf(org ast.Node, format string, args ...any) {
+	panic("todo")
+}
+
+// -----------------------------------------------------------------------------

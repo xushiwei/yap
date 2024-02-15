@@ -33,8 +33,8 @@ type Expr struct {
 	org ast.Node
 }
 
-func (v *Expr) Origin(org ast.Node) *Expr {
-	v.org = org
+func (v *Expr) Origin(org ...ast.Node) *Expr {
+	v.org = origin(org)
 	return v
 }
 
@@ -101,7 +101,7 @@ retry:
 				types.NewVar(token.NoPos, p.Types, "", types.Typ[types.Bool]))
 		}
 	case *types.Basic:
-		if info := t.Info(); (info & types.IsString) != 0 {
+		if (t.Info() & types.IsString) != 0 {
 			key, elem = types.Typ[types.Int], types.Typ[types.Byte]
 		}
 	case *types.Array:
@@ -125,6 +125,53 @@ retry:
 	}
 }
 
+// Slice means:
+//   - v[i:j:k]
+//
+// If v is Array, Slice or String, it support v[i:j]
+// If v is Array or Slice, it support v[i:j:k]
+func (p *Package) Slice(v *Expr, i, j, k any, org ...ast.Node) *Expr {
+	var typ = v.typ
+	var ok = false
+	var orgv = origin(org)
+retry:
+	switch t := typ.(type) {
+	case *types.Slice:
+	case *types.Basic:
+		ok = (t.Info() & types.IsString) != 0
+		if ok && k != nil {
+			p.error(orgv, "invalid operation $(code) (3-index slice of string)")
+		}
+	case *types.Named:
+		typ = t.Underlying()
+		goto retry
+	case *types.Array:
+		typ, ok = types.NewSlice(t.Elem()), true
+	case *types.Pointer:
+		if tt, tok := t.Elem().(*types.Array); tok {
+			typ, ok = types.NewSlice(tt.Elem()), true
+		}
+	}
+	if !ok {
+		typ = types.Typ[types.Invalid]
+		p.errorf(orgv, "cannot slice $(code) (type %v)", typ)
+	}
+	return &Expr{
+		src: &ast.SliceExpr{
+			X: v.src, Low: p.sliceIdx(i), High: p.sliceIdx(j), Max: p.sliceIdx(k), Slice3: k != nil,
+		},
+		typ: typ,
+		org: orgv,
+	}
+}
+
+func (p *Package) sliceIdx(i any) ast.Expr {
+	if i == nil {
+		return nil
+	}
+	return p.NewExpr(i).src
+}
+
 // -----------------------------------------------------------------------------
 
 func (p *Package) NewExpr(val any) *Expr {
@@ -143,22 +190,18 @@ func (p *Package) UnaryOp(op token.Token, y *Expr, org ...ast.Node) *Expr {
 	panic("todo")
 }
 
-func (p *Package) Call(fn any, args ...any) *Expr {
-	panic("todo")
-}
-
-func (p *Package) CallSlice(fn any, args ...any) *Expr {
+func (p *Package) Call(ellipsis bool, fn any, args ...any) *Expr {
 	panic("todo")
 }
 
 // -----------------------------------------------------------------------------
 
 func (p *Package) Make(t Type, n any) *Expr {
-	return p.Call("make", p.Typ(t), n)
+	return p.Call(false, "make", p.Typ(t), n)
 }
 
 func (p *Package) MakeCap(t Type, n, cap any) *Expr {
-	return p.Call("make", p.Typ(t), n, cap)
+	return p.Call(false, "make", p.Typ(t), n, cap)
 }
 
 // -----------------------------------------------------------------------------

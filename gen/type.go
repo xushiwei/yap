@@ -44,7 +44,7 @@ func typeKind(t types.Type) Kind {
 retry:
 	switch v := t.(type) {
 	case *types.Basic:
-		if info := v.Info(); (info & types.IsString) != 0 {
+		if (v.Info() & types.IsString) != 0 {
 			return String
 		}
 		return Basic

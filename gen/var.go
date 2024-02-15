@@ -106,8 +106,9 @@ func (p *Package) NewVar(name string, typ Type, val any, auto bool, org ...ast.N
 }
 
 // v = append(v, arg)
-func (p *Package) Append(v *Var, arg any, org ...ast.Node) *AssignStmt {
-	rhs := p.Call("append", v.Val(), arg)
+// v = append(v, arg...)
+func (p *Package) Append(v *Var, arg any, ellipsis bool, org ...ast.Node) *AssignStmt {
+	rhs := p.Call(ellipsis, "append", v.Val(), arg)
 	return p.Assign(org...).Lhs(v.Ref()).Rhs(rhs)
 }
 

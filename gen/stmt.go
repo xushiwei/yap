@@ -219,6 +219,15 @@ func (p *ForStmt) BodyAdd(list ...Stmt) *ForStmt {
 	return p
 }
 
+// Times means
+//   - for i := 0; i < n; i++
+func Times(pkg *Package, n *Expr) (*ForStmt, *Var) {
+	i := pkg.DefineVar("i", 0, true)
+	cond := pkg.BinaryOp(i.Val(), token.LSS, n)
+	inc := pkg.UnaryOp(token.INC, i.Ref())
+	return pkg.For().Init(i).Cond(cond).Post(inc), i
+}
+
 // -----------------------------------------------------------------------------
 
 type RangeStmt struct {

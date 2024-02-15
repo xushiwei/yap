@@ -50,7 +50,7 @@ func (p *Class) Insert(args ...any) (sql.Result, error) {
 //   - insert <colName1>, <valSlice1>, <colName2>, <valSlice2>, ...
 //   - insert <structValOrPtr>
 //   - insert <structOrPtrSlice>
-func (p *ClassGen) Insert(args ...Expr) Expr {
+func (p *ClassGen) Insert(args ...Expr) Stmt {
 	if p.tbl == "" {
 		log.Panicln("please call `use <tableName>` to specified current table")
 	}
@@ -80,12 +80,12 @@ func (p *Class) insertStruc(arg any) (sql.Result, error) {
 // Insert inserts a new row.
 //   - insert <structValOrPtr>
 //   - insert <structOrPtrSlice>
-func (p *ClassGen) insertStruc(arg Expr) Expr {
+func (p *ClassGen) insertStruc(arg Expr) Stmt {
 	switch arg.Kind() {
 	case gen.Slice:
 		return p.insertStrucRows(arg)
 	case gen.Pointer:
-		arg = arg.Elem()
+		arg = p.pkg.Elem(arg)
 		fallthrough
 	default:
 		return p.insertStrucRow(arg)
@@ -120,7 +120,7 @@ func (p *Class) insertStrucRows(vSlice reflect.Value) (sql.Result, error) {
 	return p.insertRowsVals(p.tbl, names, vals, rows)
 }
 
-func (p *ClassGen) insertStrucRows(vSlice Expr) Expr {
+func (p *ClassGen) insertStrucRows(vSlice Expr) Stmt {
 	panic("todo")
 }
 
@@ -134,7 +134,7 @@ func (p *Class) insertStrucRow(vArg reflect.Value) (sql.Result, error) {
 	return p.insertRow(p.tbl, names, vals)
 }
 
-func (p *ClassGen) insertStrucRow(vArg Expr) Expr {
+func (p *ClassGen) insertStrucRow(vArg Expr) Stmt {
 	if vArg.Kind() != gen.Struct {
 		log.Panicln("usage: insert <structValOrPtr>")
 	}
@@ -201,7 +201,7 @@ func (p *Class) insertKvPair(kvPair ...any) (sql.Result, error) {
 // Insert inserts a new row.
 //   - insert <colName1>, <val1>, <colName2>, <val2>, ...
 //   - insert <colName1>, <valSlice1>, <colName2>, <valSlice2>, ...
-func (p *ClassGen) insertKvPair(kvPair ...Expr) Expr {
+func (p *ClassGen) insertKvPair(kvPair ...Expr) Stmt {
 	nPair := len(kvPair)
 	if nPair < 2 || nPair&1 != 0 {
 		log.Panicln("usage: insert <colName1>, <val1>, <colName2>, <val2>, ...")
@@ -256,7 +256,7 @@ func (p *Class) insertMulti(tbl string, names []string, iArgSlice int, args []an
 	return p.insertRowsVals(tbl, names, vals, rows)
 }
 
-func (p *ClassGen) insertMulti(tbl string, names []string, iArgSlice int, args []Expr) Expr {
+func (p *ClassGen) insertMulti(tbl string, names []string, iArgSlice int, args []Expr) Stmt {
 	panic("todo")
 }
 
@@ -273,44 +273,39 @@ func (p *Class) insertSlice(tbl string, names []string, args []any, rows int) (s
 }
 
 // NOTE: len(args) == len(names)
-func (p *ClassGen) insertSlice(tbl string, names []string, args []Expr) Expr {
-	pkg := p.Package
+func (p *ClassGen) insertSlice(tbl string, names []string, args []Expr) Stmt {
+	pkg := p.pkg
 	vargs := make([]*gen.Var, len(names))
 	for i, name := range names {
 		vargs[i] = pkg.DefineVar(name, args[i], true)
 	}
 	log := pkg.Import("log")
-	rows := pkg.DefineVar("rows", pkg.Call("len", vargs[0].Val()), true)
-	body := pkg.Block(rows)
+	rows := pkg.DefineVar("rows", pkg.Call(false, "len", vargs[0].Val()), true)
+	block := pkg.Block(rows)
 	for i := 1; i < len(vargs); i++ {
-		vlen := pkg.DefineVar("vlen", pkg.Call("len", vargs[i].Val()), true)
+		vlen := pkg.DefineVar("vlen", pkg.Call(false, "len", vargs[i].Val()), true)
 		ifStmt := pkg.If().Init(vlen).Cond(pkg.BinaryOp(rows.Val(), token.NEQ, vlen.Val())).Body(
-			pkg.Call(log.Ref("Panicf"), "insert: unexpected slice length. got %d, expected %d\n", vlen.Val(), rows.Val()),
+			pkg.Call(false, log.Ref("Panicf"), "insert: unexpected slice length. got %d, expected %d\n", vlen.Val(), rows.Val()),
 		)
-		body.Add(ifStmt)
+		block.BodyAdd(ifStmt)
 	}
 
 	// vals := make([]any, 0, len(names)*rows)
-	//
-	anySlice := pkg.Typ(gen.TyAny.Slice())
 	n := pkg.BinaryOp(len(names), token.MUL, rows.Val())
-	vals := pkg.DefineVar("vals", pkg.Call("make", anySlice, 0, n), true)
+	vals := pkg.DefineVar("vals", pkg.MakeCap(gen.TyAny.Slice(), 0, n), true)
 
-	// for i := 0; i < rows; i++ {
-	//
-	i := pkg.DefineVar("i", 0, true)
-	cond := pkg.BinaryOp(i.Val(), token.LSS, rows.Val())
-	inc := pkg.UnaryOp(token.INC, i.Ref())
-	forStmt := pkg.For().Init(i).Cond(cond).Post(inc)
+	// for i := 0; i < rows; i++
+	forStmt, i := gen.Times(pkg, rows.Val())
 	for _, arg := range vargs {
 		// vals = append(vals, v.Index(i))
 		v := arg.Val()
-		assign := pkg.Append(vals, v.Index(i.Val()))
-		forStmt.Add(assign)
+		assign := pkg.Append(vals, pkg.Index(false, v, i.Val()), false)
+		forStmt.BodyAdd(assign)
 	}
 
-	body.Add(vals, forStmt)
-	return p.insertRowsVals(tbl, names, vals, rows)
+	block.BodyAdd(vals, forStmt)
+	p.insertRowsVals(tbl, names, vals, rows, block)
+	return block
 }
 
 // NOTE: len(vals) == len(names) * rows
@@ -328,17 +323,18 @@ func (p *Class) insertRowsVals(tbl string, names []string, vals []any, rows int)
 }
 
 // NOTE: len(vals) == len(names) * rows
-func (p *ClassGen) insertRowsVals(tbl string, names []string, vals, rows *gen.Var) Expr {
+func (p *ClassGen) insertRowsVals(tbl string, names []string, vals, rows *gen.Var, block *gen.BlockStmt) {
+	pkg := p.pkg
 	n := len(names)
 	query := makeInsertExpr(tbl, names)
-	query = append(query, valParams(n, rows)...)
+	q := valParamsGen(pkg, string(query), n, rows, block)
 
-	q := string(query)
-	if debugExec {
-		log.Println("==>", q, vals)
-	}
-	result, err := p.db.ExecContext(context.TODO(), q, vals...)
-	return p.insertRet(result, err)
+	// result, err := this.db.ExecContext(ctx, string(q), vals...)
+	_ = q
+
+	// result, err := p.db.ExecContext(context.TODO(), q, vals...)
+	// return p.insertRet(result, err)
+	panic("todo")
 }
 
 func (p *Class) insertRow(tbl string, names []string, vals []any) (sql.Result, error) {
@@ -356,7 +352,7 @@ func (p *Class) insertRow(tbl string, names []string, vals []any) (sql.Result, e
 	return p.insertRet(result, err)
 }
 
-func (p *ClassGen) insertRow(tbl string, names []string, vals []Expr) Expr {
+func (p *ClassGen) insertRow(tbl string, names []string, vals []Expr) Stmt {
 	panic("todo")
 }
 
@@ -384,20 +380,33 @@ func valParams(n, rows int) string {
 	return valparams
 }
 
-func valParamsGen(pkg *gen.Package, query string, n int, rows *gen.Var) string {
+func valParamsGen(pkg *gen.Package, query string, n int, rows *gen.Var, block *gen.BlockStmt) *gen.Var {
 	valparam := valParam(n)
+	valparamComma := valparam + ","
 
-	// size := len(query) + (len(valparam)+1)*rows - 1
-	mul := pkg.BinaryOp(len(valparam)+1, token.MUL, rows.Val())
-	add := pkg.BinaryOp(len(query), token.ADD, mul)
-	size := pkg.DefineVar("size", pkg.BinaryOp(add, token.SUB, 1), true)
+	// size := len(query) + len(valparamComma)*rows
+	mul := pkg.BinaryOp(len(valparamComma), token.MUL, rows.Val())
+	size := pkg.DefineVar("size", pkg.BinaryOp(len(query), token.ADD, mul), true)
 
-	// b := make([]byte, 0, size)
-	b := pkg.DefineVar("b", pkg.Call("make", gen.TyByte.Slice()))
+	// q := make([]byte, 0, size)
+	// q = append(q, query...)
+	q := pkg.DefineVar("q", pkg.MakeCap(gen.TyByte.Slice(), 0, size.Val()), true)
+	addquery := pkg.Append(q, query, true)
 
-	valparams := strings.Repeat(valparam+",", rows)
-	valparams = valparams[:len(valparams)-1]
-	return valparams
+	// for i := 0; i < rows; i++ {
+	//     q = append(q, valparamComma...)
+	// }
+	forStmt, _ := gen.Times(pkg, rows.Val())
+	forStmt.Body(
+		pkg.Append(q, valparamComma, true),
+	)
+
+	// q = q[:size-1]
+	bslice := pkg.Slice(q.Val(), nil, pkg.BinaryOp(size.Val(), token.SUB, 1), nil)
+	bassign := pkg.Assign().Lhs(q.Ref()).Rhs(bslice)
+
+	block.BodyAdd(size, q, addquery, forStmt, bassign)
+	return q
 }
 
 func valParam(n int) string {

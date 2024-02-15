@@ -35,6 +35,7 @@ var (
 )
 
 type Expr = *gen.Expr
+type Stmt = *gen.BlockStmt
 
 // -----------------------------------------------------------------------------
 
@@ -55,7 +56,7 @@ type Class struct {
 }
 
 type ClassGen struct {
-	*gen.Package
+	pkg *gen.Package
 	tbl string
 }
 
