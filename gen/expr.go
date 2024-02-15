@@ -22,6 +22,7 @@ import (
 
 	"github.com/goplus/gop/ast"
 	"github.com/goplus/gop/token"
+	"github.com/goplus/yap/gen/typesutil"
 )
 
 // -----------------------------------------------------------------------------
@@ -38,7 +39,7 @@ func (v *Expr) Origin(org ...ast.Node) *Expr {
 	return v
 }
 
-func (v *Expr) Stmt(pkg *Package) ast.Stmt {
+func (v *Expr) Stmt(ctx *BlockCtx) ast.Stmt {
 	panic("todo")
 }
 
@@ -63,6 +64,22 @@ func (v *Expr) NumField() int {
 // It panics if v's value isn't a constant string.
 func (v *Expr) ToString() string {
 	return constant.StringVal(v.val)
+}
+
+// Caller returns name of the function call.
+func (v *Expr) Caller() string {
+	if ce, ok := v.src.(*ast.CallExpr); ok {
+		return typesutil.ExprString(ce.Fun)
+	}
+	return "the function call"
+}
+
+func astExprs(exprs []*Expr) []ast.Expr {
+	ret := make([]ast.Expr, len(exprs))
+	for i, expr := range exprs {
+		ret[i] = expr.src
+	}
+	return ret
 }
 
 // -----------------------------------------------------------------------------

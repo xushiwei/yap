@@ -24,7 +24,7 @@ import (
 )
 
 type Stmt interface {
-	Stmt(pkg *Package) ast.Stmt
+	Stmt(ctx *BlockCtx) ast.Stmt
 }
 
 // -----------------------------------------------------------------------------
@@ -39,17 +39,14 @@ func (p *Package) Assign(org ...ast.Node) *AssignStmt {
 	return &AssignStmt{org: origin(org)}
 }
 
-func (p *AssignStmt) Stmt(pkg *Package) ast.Stmt {
+func (p *AssignStmt) Stmt(ctx *BlockCtx) ast.Stmt {
 	lht := NewExprs(p.lhs)
 	rht := TupleOf(p.rhs)
-	err := pkg.CheckAssignable(lht, rht, p.org)
-	if err != nil {
-		panic(err)
-	}
+	ctx.checkAssignable(lht, rht, p.org)
 	return &ast.AssignStmt{
-		Lhs: nil,
+		Lhs: astExprs(p.lhs),
 		Tok: token.ASSIGN,
-		Rhs: nil,
+		Rhs: astExprs(p.rhs),
 	}
 }
 
@@ -73,8 +70,8 @@ func (p *Package) Block(in ...Stmt) *BlockStmt {
 	return &BlockStmt{in}
 }
 
-func (p *BlockStmt) Stmt(pkg *Package) ast.Stmt {
-	return makeBlockStmt(pkg, p.body)
+func (p *BlockStmt) Stmt(ctx *BlockCtx) ast.Stmt {
+	return makeBlockStmt(ctx, p.body)
 }
 
 func (p *BlockStmt) BodyAdd(list ...Stmt) *BlockStmt {
@@ -82,10 +79,10 @@ func (p *BlockStmt) BodyAdd(list ...Stmt) *BlockStmt {
 	return p
 }
 
-func makeBlockStmt(pkg *Package, in []Stmt) *ast.BlockStmt {
+func makeBlockStmt(ctx *BlockCtx, in []Stmt) *ast.BlockStmt {
 	list := make([]ast.Stmt, len(in))
 	for i, v := range in {
-		list[i] = v.Stmt(pkg)
+		list[i] = v.Stmt(ctx)
 	}
 	return &ast.BlockStmt{List: list}
 }
@@ -104,19 +101,19 @@ func (p *Package) If(org ...ast.Node) *IfStmt {
 	return &IfStmt{org: origin(org)}
 }
 
-func (p *IfStmt) Stmt(pkg *Package) ast.Stmt {
+func (p *IfStmt) Stmt(ctx *BlockCtx) ast.Stmt {
 	if !assertType(p.cond.typ, types.Typ[types.Bool]) {
 		panic("todo")
 	}
 	stmt := &ast.IfStmt{
 		Cond: p.cond.src,
-		Body: makeBlockStmt(pkg, p.body),
+		Body: makeBlockStmt(ctx, p.body),
 	}
 	if p.init != nil {
-		stmt.Init = p.init.Stmt(pkg)
+		stmt.Init = p.init.Stmt(ctx)
 	}
 	if p.else_ != nil {
-		stmt.Else = p.else_.Stmt(pkg)
+		stmt.Else = p.else_.Stmt(ctx)
 	}
 	return stmt
 }
@@ -175,12 +172,12 @@ func (p *Package) For(org ...ast.Node) *ForStmt {
 	return &ForStmt{org: origin(org)}
 }
 
-func (p *ForStmt) Stmt(pkg *Package) ast.Stmt {
+func (p *ForStmt) Stmt(ctx *BlockCtx) ast.Stmt {
 	stmt := &ast.ForStmt{
-		Body: makeBlockStmt(pkg, p.body),
+		Body: makeBlockStmt(ctx, p.body),
 	}
 	if p.init != nil {
-		stmt.Init = p.init.Stmt(pkg)
+		stmt.Init = p.init.Stmt(ctx)
 	}
 	if p.cond != nil {
 		if !assertType(p.cond.typ, types.Typ[types.Bool]) {
@@ -189,7 +186,7 @@ func (p *ForStmt) Stmt(pkg *Package) ast.Stmt {
 		stmt.Cond = p.cond.src
 	}
 	if p.post != nil {
-		stmt.Post = p.post.Stmt(pkg)
+		stmt.Post = p.post.Stmt(ctx)
 	}
 	return stmt
 }
@@ -265,13 +262,13 @@ func rangeVarRef(v *Var) ast.Expr {
 	return v.name
 }
 
-func (p *RangeStmt) Stmt(pkg *Package) ast.Stmt {
+func (p *RangeStmt) Stmt(ctx *BlockCtx) ast.Stmt {
 	return &ast.RangeStmt{
 		Key:   rangeVarRef(p.key),
 		Value: rangeVarRef(p.val),
 		Tok:   token.DEFINE,
 		X:     p.x.src,
-		Body:  makeBlockStmt(pkg, p.body),
+		Body:  makeBlockStmt(ctx, p.body),
 	}
 }
 

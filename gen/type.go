@@ -34,8 +34,9 @@ const (
 	Pointer
 	Slice
 	Map
-	Func
+	Signature
 	Struct
+	Interface
 	Chan
 	Array
 )
@@ -55,9 +56,11 @@ retry:
 	case *types.Map:
 		return Map
 	case *types.Signature:
-		return Func
+		return Signature
 	case *types.Struct:
 		return Struct
+	case *types.Interface:
+		return Interface
 	case *types.Named:
 		t = v.Underlying()
 		goto retry
@@ -135,10 +138,6 @@ func NewRefType(typ types.Type) *RefType {
 	return &RefType{typ}
 }
 
-func Assignable(lht, rht types.Type) bool {
-	panic("todo")
-}
-
 func (p *RefType) Underlying() types.Type { return p }
 func (p *RefType) String() string         { return fmt.Sprintf("RefType{%v}", p.Type) }
 func (p *RefType) typeEx()                {}
@@ -168,6 +167,11 @@ type Exprs struct {
 	list []*Expr
 }
 
+type callTuple struct {
+	types.Tuple
+	x *Expr
+}
+
 func NewExprs(list []*Expr) *Exprs {
 	return &Exprs{list}
 }
@@ -175,7 +179,7 @@ func NewExprs(list []*Expr) *Exprs {
 func TupleOf(list []*Expr) Tuple {
 	if len(list) == 1 {
 		if t, ok := list[0].typ.(*types.Tuple); ok {
-			return t
+			return &callTuple{*t, list[0]}
 		}
 	}
 	return NewExprs(list)
@@ -190,20 +194,30 @@ func (p *Exprs) At(i int) *types.Var {
 	return types.NewVar(originPos(v.org), nil, "", v.typ)
 }
 
-// -----------------------------------------------------------------------------
-
-func (p *Package) CheckAssignable(lht, rht Tuple, org ast.Node) (err error) {
+func (p *Package) checkAssignable(lht *Exprs, rht Tuple, org ast.Node) {
 	nl, nr := lht.Len(), rht.Len()
 	if nl != nr {
-		panic("todo")
+		if ct, ok := rht.(*callTuple); ok {
+			p.errorf(org, "assignment mismatch: %d variables but %v returns %d values", nl, ct.x.Caller(), nr)
+		} else {
+			p.errorf(org, "assignment mismatch: %d variables but %d values", nl, nr)
+		}
+		return
 	}
 	for i := 0; i < nr; i++ {
 		tl, tr := lht.At(i), rht.At(i)
-		if !Assignable(tl.Type(), tr.Type()) {
-			panic("todo")
+		t, ok := tl.Type().(*RefType)
+		if !ok {
+			lhe := lht.list[i]
+			p.error(lhe.org, "lhs expression $(code) is unassignable")
+			return
+		}
+		ttr := tr.Type()
+		if !types.AssignableTo(ttr, t.Type) {
+			p.errorf(org, "assignment mismatch: can't assign type %v to %v", ttr, t.Type)
+			return
 		}
 	}
-	return nil
 }
 
 // -----------------------------------------------------------------------------

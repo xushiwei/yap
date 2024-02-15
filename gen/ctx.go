@@ -16,16 +16,21 @@
 
 package gen
 
-import "go/types"
+import (
+	"go/types"
+)
 
 // -----------------------------------------------------------------------------
 
-type Func struct {
-	obj *types.Func
+type BlockCtx struct {
+	*Package
+	Scope *types.Scope
+
+	parent *BlockCtx
 }
 
-func (p *Package) NewFunc() *Func {
-	return &Func{}
+func (p *Package) NewCtx(parent *BlockCtx, scope *types.Scope) *BlockCtx {
+	return &BlockCtx{p, scope, parent}
 }
 
 // -----------------------------------------------------------------------------
