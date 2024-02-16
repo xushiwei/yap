@@ -71,7 +71,8 @@ func (p *Package) Block(in ...Stmt) *BlockStmt {
 }
 
 func (p *BlockStmt) Stmt(ctx *BlockCtx) ast.Stmt {
-	return makeBlockStmt(ctx, p.body)
+	me := ctx.New("block stmt", nil)
+	return makeBlockStmt(me, p.body)
 }
 
 func (p *BlockStmt) BodyAdd(list ...Stmt) *BlockStmt {
@@ -105,12 +106,14 @@ func (p *IfStmt) Stmt(ctx *BlockCtx) ast.Stmt {
 	if !assertType(p.cond.typ, types.Typ[types.Bool]) {
 		panic("todo")
 	}
+	ifCtx := ctx.New("if stmt", p.org)
+	ifBody := ifCtx.New("if body")
 	stmt := &ast.IfStmt{
 		Cond: p.cond.src,
 		Body: makeBlockStmt(ctx, p.body),
 	}
 	if p.init != nil {
-		stmt.Init = p.init.Stmt(ctx)
+		stmt.Init = p.init.Stmt(ifCtx)
 	}
 	if p.else_ != nil {
 		stmt.Else = p.else_.Stmt(ctx)

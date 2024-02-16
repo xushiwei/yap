@@ -74,6 +74,8 @@ func (v *Expr) Caller() string {
 	return "the function call"
 }
 
+// -----------------------------------------------------------------------------
+
 func astExprs(exprs []*Expr) []ast.Expr {
 	ret := make([]ast.Expr, len(exprs))
 	for i, expr := range exprs {

@@ -51,8 +51,33 @@ func (p PkgRef) Ref(name string) Expr {
 
 // -----------------------------------------------------------------------------
 
+type Config struct {
+	// Types provides type information for the package (optional).
+	Types *types.Package
+
+	// Fset provides source position information for syntax trees and types (optional).
+	// If Fset is nil, Load will use a new fileset, but preserve Fset's value.
+	Fset *token.FileSet
+}
+
 type Package struct {
 	PkgRef
+	fset *token.FileSet
+}
+
+func NewPackage(pkgPath, name string, conf *Config) *Package {
+	if conf == nil {
+		conf = new(Config)
+	}
+	typs := conf.Types
+	if typs == nil {
+		typs = types.NewPackage(pkgPath, name)
+	}
+	fset := conf.Fset
+	if fset == nil {
+		fset = token.NewFileSet()
+	}
+	return &Package{PkgRef{typs}, fset}
 }
 
 func (p *Package) Import(pkgPath string) PkgRef {
@@ -61,10 +86,6 @@ func (p *Package) Import(pkgPath string) PkgRef {
 
 func (p *Package) Typ(typ Type, org ...ast.Node) *Expr {
 	return &Expr{p.TypeExpr(typ.Type), NewTypeType(typ.Type), nil, origin(org)}
-}
-
-func (p *Package) TypeExpr(typ types.Type) ast.Expr {
-	panic("todo")
 }
 
 // -----------------------------------------------------------------------------

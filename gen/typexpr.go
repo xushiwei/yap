@@ -17,7 +17,6 @@
 package gen
 
 import (
-	"go/token"
 	"go/types"
 
 	"github.com/goplus/gop/ast"
@@ -25,26 +24,14 @@ import (
 
 // -----------------------------------------------------------------------------
 
-type BlockCtx struct {
-	*Package
-	Scope *types.Scope
-
-	parent *BlockCtx
+func (p *Package) toFuncType(ret *ast.FuncType, sig *types.Signature) {
 }
 
-func (p *BlockCtx) New(comment string, org ast.Node) *BlockCtx {
-	var start, end token.Pos
-	if org != nil {
-		start, end = org.Pos(), org.End()
-	}
-	scope := types.NewScope(p.Scope, start, end, comment)
-	return &BlockCtx{p.Package, scope, p}
+func (p *Package) toFuncDecl(ret *ast.FuncDecl, sig *types.Signature) {
 }
 
-// -----------------------------------------------------------------------------
-
-func (p *Package) NewCtx(scope *types.Scope) *BlockCtx {
-	return &BlockCtx{p, scope, nil}
+func (p *Package) TypeExpr(typ types.Type) ast.Expr {
+	panic("todo")
 }
 
 // -----------------------------------------------------------------------------

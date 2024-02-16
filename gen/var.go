@@ -62,6 +62,7 @@ func (p *Var) Val(org ...ast.Node) *Expr {
 // -----------------------------------------------------------------------------
 
 func (p *Package) DefineVar(name string, val any, auto bool, org ...ast.Node) *Var {
+	types.NewVar()
 	v := p.NewExpr(val)
 	id := ast.NewIdent(name)
 	return &Var{
